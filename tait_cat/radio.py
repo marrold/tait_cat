@@ -67,14 +67,14 @@ class Radio:
         command = "E005B\r\n"
         self.send_raw(command)
 
-		# TODO: Exiting CCR reboots the radio, so there's no response.
-		# Perhaps after issuing an exit, we should send some CCDI specific
-		# to check if the radio is back in CCDI mode.
+        # TODO: Exiting CCR reboots the radio, so there's no response.
+        # Perhaps after issuing an exit, we should send some CCDI specific
+        # to check if the radio is back in CCDI mode.
 
 
-	# TODO: When the radio is in CCDI, the radio doesn't response to a pulse.
-	# We should probably send some CCDI specific QUERY command to check if 
-	# is in CCDI mode instead the radio
+    # TODO: When the radio is in CCDI, the radio doesn't response to a pulse.
+    # We should probably send some CCDI specific QUERY command to check if 
+    # is in CCDI mode instead the radio
     def ccr_pulse(self):
 
         command = "Q01P"
@@ -175,8 +175,8 @@ class Radio:
 
 
     #TODO: Once the radio has been in CCR mode, this command seems to fail with 
-	# the response e03005A3. This indicates a "TM8000 Not Ready Error" and 
-	# requires removing the power to fix. Test and confirm?
+    # the response e03005A3. This indicates a "TM8000 Not Ready Error" and 
+    # requires removing the power to fix. Test and confirm?
     def resp_get_temp(self, response):
 
         if response[0] == "j":
@@ -185,6 +185,9 @@ class Radio:
                 temperature = response[6:8]
                 return temperature
         
+        elif response[0] == "e":
+            pass
+
         raise Exception(f"Invalid response to get_temp: {response}")
 
 
