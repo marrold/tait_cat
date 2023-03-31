@@ -1,5 +1,4 @@
 import sys
-import serial
 import tait_cat as tait
 
 
