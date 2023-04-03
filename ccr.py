@@ -7,19 +7,53 @@ if __name__ == "__main__":
         port = sys.argv[1]
         radio = tait.Radio(port)
 
-        # print("Exiting CCR")
-        # radio.ccr_exit()
+        if radio.query_mode() == "CCR":
+            radio.ccr_exit()
 
-        # time.sleep(5)
+        temp, adc = radio.get_temp()
+        print(f"Temp: {temp} ADC: {adc}")
 
-        # # print(f"Pulse: {print(radio.ccr_pulse())}")
+        print(f"Serial: {radio.get_ser()}")
+
+        print(f"Mode: {radio.query_mode()}")
 
         print("Entering CCR")
         radio.ccr_enter()
 
-        time.sleep(1)
+        print(f"Mode: {radio.query_mode()}")
 
-        print(f"Pulse: {radio.ccr_pulse()}")
+        print("Set Rx")
+        radio.ccr_rx("144500000")
+
+        print("Set Tx")
+        radio.ccr_tx("144500000")
+
+        print("Set Power")
+        radio.ccr_pwr("1")
+
+        print("Exiting CCR")
+        radio.ccr_exit()
+
+        time.sleep(2)
+
+        # print(f"CCR Pulse: {radio.ccr_pulse()}")
+
+
+        # print("Entering CCR")
+        # radio.ccr_enter()
+
+        # time.sleep(1)
+
+
+        # print(f"CCDI Pulse: {radio.ccdi_pulse()}")
+
+
+        # # print("Entering CCR")
+        # # radio.ccr_enter()
+
+        # time.sleep(1)
+
+        # print(f"CCR Pulse: {radio.ccr_pulse()}")
 
         # print("Set Rx")
         # print(radio.ccr_rx("144500000"))

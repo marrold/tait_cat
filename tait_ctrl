@@ -1,0 +1,73 @@
+import sys
+import time
+import threading
+import termios
+import tty
+import select
+
+def on_space_pressed():
+    print('Space bar pressed\n\r', end='', flush=True)
+
+def on_space_released():
+    print('Space bar released\n\r', end='', flush=True)
+
+def on_enter_pressed(string):
+    print(f"\n\rYou entered: {string}\n\r", end='', flush=True)
+
+def space_release_checker():
+    global space_last_pressed, space_pressed, disable_space_handling
+    while True:
+        current_time = time.time()
+        if not disable_space_handling and space_pressed and current_time - space_last_pressed >= 1:
+            on_space_released()
+            space_pressed = False
+        time.sleep(0.01)
+
+def setup_terminal():
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    tty.setraw(fd)
+    return old_settings
+
+def restore_terminal(old_settings):
+    fd = sys.stdin.fileno()
+    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+space_last_pressed = None
+space_pressed = False
+disable_space_handling = False
+checker_thread = threading.Thread(target=space_release_checker)
+checker_thread.daemon = True
+checker_thread.start()
+
+print("Press the space bar to run the functions. Press 'q' to quit.")
+print("Type a string and press Enter to call the function with the string.")
+
+old_settings = setup_terminal()
+try:
+    input_buffer = ''
+    while True:
+        if select.select([sys.stdin], [], [], 0.1)[0]:
+            key = sys.stdin.read(1)
+            current_time = time.time()
+
+            if key == ' ' and not input_buffer:
+                if not space_pressed:
+                    on_space_pressed()
+                    space_pressed = True
+                space_last_pressed = current_time
+            elif key == 'q':
+                break
+            elif key == '\r':
+                on_enter_pressed(input_buffer)
+                input_buffer = ''
+                disable_space_handling = False
+            else:
+                disable_space_handling = True
+                input_buffer += key
+                sys.stdout.write(key)
+                sys.stdout.flush()
+finally:
+    restore_terminal(old_settings)
+
+print("\rProgram ended.")

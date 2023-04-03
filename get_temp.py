@@ -7,7 +7,8 @@ if __name__ == "__main__":
         radio = tait.Radio(port)
         
         # Get temperature
-        print(f"Temp: {radio.get_temp()}")
+        temp, adc = radio.get_temp()
+        print(f"Temp: {temp} ADC: {adc}")
 
     else:
         print("Please provide a port")
