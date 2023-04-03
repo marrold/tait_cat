@@ -1,6 +1,10 @@
 import serial
-from serial.serialutil import SerialTimeoutException
 import time
+
+# TODO: Handle serial errrors. eg serial.serialutil.SerialException: [Errno 19] could not open port /dev/ttyUSB0: [Errno 19] No such device: '/dev/ttyUSB0'
+# TODO: Add bandwidth and ctcss commands
+# TODO: Load presets from csv file?
+
 
 def calculate_checksum(message):
 
@@ -8,6 +12,7 @@ def calculate_checksum(message):
     twos_complement = (256 - modulo_2_sum) % 256
     checksum_hex = format(twos_complement, "02X")
     return checksum_hex
+
 
 def validate_checksum(message):
 
@@ -20,25 +25,40 @@ def validate_checksum(message):
     else:
         return False
 
+
 class Radio:
+
     def __init__(self, port, baud=9600, timeout=1):
 
         self.port = port
         self.baud = baud
-        self.timeout = 1
+        self.timeout = 0.1
+
 
     def chng_chan(self, channel):
 
         command = f"g{str(len(channel)).zfill(2)}{channel}"
 
-        response = self.send_command(command, 1)
+        response = self.send_command(command)
 
         if response:
-            new_chan = self.resp_chng_chan(response, channel)
-            if new_chan != channel:
-                raise Exception("Wrong Channel")
 
-        return channel
+            if response[0] == ".": # TODO: This should probably raise an exception thats caught later
+                return channel
+
+            elif response[0] == "e":
+                self.handle_ccdi_error(response)
+
+            elif response[0] == "p" and response[3:6] == "210":
+                new_chan = response[6:-2]
+                if new_chan != channel:
+                    raise Exception("Wrong Channel")
+                else:
+                    return channel
+
+            else:
+                raise Exception(f"Invalid response to chang_chan: {response}")
+    
 
     def get_temp(self):
 
@@ -82,6 +102,7 @@ class Radio:
     
         return version        
 
+
     def query_mode(self):
 
         if self.ccdi_pulse():
@@ -92,6 +113,7 @@ class Radio:
         
         else:
             raise Exception("Couldn't determine mode")
+
 
     def ccr_enter(self):
 
@@ -105,6 +127,7 @@ class Radio:
         else:
             raise Exception("ccr_enter failed")
 
+
     def ccr_exit(self):
 
         command = "E00"
@@ -115,7 +138,7 @@ class Radio:
         # as it reboots.
         # Lets loop and wait for the radio to reboot, checking 
         # until we know the radio is back in CCDI mode
-        for i in range(30):
+        for i in range(10):
 
             time.sleep(1)
 
@@ -146,10 +169,13 @@ class Radio:
 
         # A pulse has a dedicated response, so first we check the ack is valid
         # then we check the outcome of the pulse
-        if response and self.resp_ccr_ack(response):
+        if response and response[0 == "+"]:
             return self.resp_ccr_pulse(response)
+        else:
+            self.handle_error(response)
 
         raise Exception("ccr_pulse failed")
+
 
     def ccr_tx(self, freq):
 
@@ -207,11 +233,10 @@ class Radio:
                     response = ""
                     while True:
                         ch = self.read_serial(ser, 1)
-                        if ch in ['.', '-', '+', 'e', 'Q']:
+                        if ch in ['.', '-', '+', 'e', 'Q']: #TODO: This should include M?
                             response = response + ch
                             break
-                    
-                    # Handle CCR negative responses
+
                     if response == ".":
                         # Capture the length and remaining characters
                         command = self.read_serial(ser, 1)
@@ -224,7 +249,8 @@ class Radio:
                         response += f"{size}{self.read_serial(ser, length)}"
 
                 except Exception: # TODO: We only really want to catch serial timeouts here
-                    response = ""
+                    if response != ".":
+                        response = ""
                     pass
             
                 # If the response is empty we must have timed out. Skip this iteration.
@@ -244,8 +270,11 @@ class Radio:
                 # Add the response to the list
                 responses.append(response)
 
-        if num_responses == 1 and len(responses) >0:
-            responses = responses[0]
+        if num_responses == 1:
+            if len(responses) > 0:
+                responses = responses[0]
+            else:
+                responses = None 
 
         return responses
 
@@ -258,23 +287,6 @@ class Radio:
             # Send the message
             ser.write(command.encode(encoding="ascii"))
 
-
-    def check_response(self, response):
-        
-        if response == ".":
-            raise Exception("Already Set")
-
-        # TODO: The response to the temp query sends two replies, one with celsius and one with millivolts.
-        # For now we split any replies and just ignore the second. This works, but is a bit messy.
-        response = [s.lstrip(".") if s.startswith(".") else s for s in response.split("\r")][0]
-
-        if response == "":
-            raise Exception("Timed out waiting for response")
-
-        if not validate_checksum(response):
-            raise Exception(f"Checksum failed: {response}")
-
-        return response
 
     def resp_chng_chan(self, response, channel):
 
@@ -333,6 +345,7 @@ class Radio:
         
         raise Exception(f"Invalid response to get_ser: {response}")
 
+
     def resp_ccdi_pulse(self, response):
 
         if response[0] == "n":
@@ -343,6 +356,7 @@ class Radio:
             self.handle_ccdi_error(response)
 
         raise Exception(f"Invalid response to ccdi_pulse: {response}")
+
 
     def resp_ccr_enter(self, response):
 
@@ -366,25 +380,7 @@ class Radio:
 
         # CCR Negative Response
         elif response[0] == "-":
-
-            if response[3:5] == "01":
-                raise Exception ("Invalid command")
-
-            if response[3:5] == "02":
-                raise Exception ("Checksum Error")
-
-            if response[3:5] == "03":
-                raise Exception ("Parameter Error")
-
-            if response[3:5] == "05":
-                raise Exception ("Radio Busy")
-
-            if response[3:5] == "06":
-                raise Exception ("Command Error")
-        
-        # CCR Pulse Response
-        elif response[0] == "Q":
-            return True
+            self.handle_ccr_error(response)
 
         else:
             raise Exception(f"Response not implemented: {response}")
@@ -397,6 +393,7 @@ class Radio:
         else:
             return False
 
+
     def handle_error(self, response):
 
         print(f"HANDLE ERROR: {response}")
@@ -407,6 +404,7 @@ class Radio:
             self.handle_ccr_error(response)
         else:
             return True
+
 
     def handle_ccr_error(self, response):
 

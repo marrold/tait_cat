@@ -2,6 +2,7 @@ import sys
 import tait_cat as tait
 import time
 
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         port = sys.argv[1]
@@ -31,8 +32,8 @@ if __name__ == "__main__":
         print("Set Power")
         radio.ccr_pwr("1")
 
-        print("Exiting CCR")
-        radio.ccr_exit()
+        # print("Exiting CCR")
+        # radio.ccr_exit()
 
         time.sleep(2)
 
